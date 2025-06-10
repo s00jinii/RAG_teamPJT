@@ -55,7 +55,7 @@ class ESAgent(LLMClient, ElasticSearchClient):
                 verbose=True,
                 handle_parsing_errors=True,
                 system_message="""
-            You are an AI assistant that helps with questions about American politics using a knowledge base. Be concise, sharp, to the point, and respond in one paragraph.
+            You are an AI assistant that helps with questions about place to play using a knowledge base. Be concise, sharp, to the point, and respond in one paragraph.
             You have access to the following tools:
 
             - **ES_Status**: Checks if Elasticsearch is connected.
