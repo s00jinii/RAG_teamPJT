@@ -64,8 +64,8 @@ class ESAgent(LLMClient, ElasticSearchClient):
 
             **Important Instructions:**
 
-            - **Extract dates or date ranges from the user's question.**
-            - **If the user does not provide a date or date range, politely ask them to provide one before proceeding.**
+            - **Extract proper culture and site info from user using question.**
+            - **If the info from knowledge base is too big. filter this by question to user, politely ask them to provide one before proceeding.**
 
             When you decide to use a tool, use the following format *exactly*:
             Thought: [Your thought process about what you need to do next]
