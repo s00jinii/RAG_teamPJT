@@ -1,38 +1,20 @@
-import os
-from dotenv import load_dotenv
-
 from langchain.agents import initialize_agent, AgentType, Tool
 from langchain.tools import StructuredTool
 from langchain.memory import ConversationBufferMemory
 from pydantic import BaseModel, Field
 
-from elasticsearch import Elasticsearch
-
-from backend.llm import Agent
+from backend.elastic_search import ElasticSearchClient
+from backend.llm import LLMClient
 
 
 class RagSearchInput(BaseModel):
     query: str = Field(..., description="The search query for the knowledge base.")
-    dates: str = Field(
-        ...,
-        description="Date or date range for filtering results. Specify in format YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD."
-    )
 
 
-class ESAgent(Agent):
+class ESAgent(LLMClient, ElasticSearchClient):
     def __init__(self):
         """Initialize the ESAgent with the OpenAI client."""
         super().__init__()
-
-        try:
-            # Elasticsearch setup
-            es_endpoint = os.environ.get("ELASTIC_ENDPOINT")
-            self.es_client = Elasticsearch(
-                es_endpoint,
-                api_key=os.environ.get("ELASTIC_API_KEY")
-            )
-        except Exception as e:
-            self.es_client = None
 
         es_status_tool = Tool(
             name="ES_Status",
@@ -40,18 +22,27 @@ class ESAgent(Agent):
             description="Checks if Elasticsearch is connected.",
         )
 
-        rag_search_tool = StructuredTool(
-                name="RAG_Search",
-                func=self.rag_search,
+        culture_search_tool = StructuredTool(
+                name="culture_search",
+                func=self.culture_search,
                 description=(
-                    "Use this tool to search for information about American politics from the knowledge base. "
-                    "**Input must include a search query and a date or date range.** "
-                    "Dates must be specified in this format YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD."
+                    "Use this tool to search for information about culture from the knowledge base. "
+                    "**Input must include a search query.** "
                 ),
                 args_schema=RagSearchInput
         )
-        # List of tools
-        tools = [es_status_tool, rag_search_tool]
+
+        site_search_tool = StructuredTool(
+                name="site_search",
+                func=self.culture_search,
+                description=(
+                    "Use this tool to search for information about site from the knowledge base. "
+                    "**Input must include a search query.** "
+                ),
+                args_schema=RagSearchInput
+        )
+
+        tools = [es_status_tool, culture_search_tool, site_search_tool]
 
         # Initialize memory to keep track of the conversation
         memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
@@ -68,7 +59,8 @@ class ESAgent(Agent):
             You have access to the following tools:
 
             - **ES_Status**: Checks if Elasticsearch is connected.
-            - **RAG_Search**: Use this to search for information in the knowledge base. **Input must include a search query and a date or date range.** Dates must be specified in this format YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD.
+            - **culture_search**: Use this to search for culture information in the knowledge base. **Input must include a search query.
+            - **site_search**: Use this to search for site information in the knowledge base. **Input must include a search query.
 
             **Important Instructions:**
 
@@ -77,8 +69,8 @@ class ESAgent(Agent):
 
             When you decide to use a tool, use the following format *exactly*:
             Thought: [Your thought process about what you need to do next]
-            Action: [The action to take, should be one of [ES_Status, RAG_Search]]
-            Action Input: {"query": "the search query", "dates": "the date or date range"}
+            Action: [The action to take, should be one of [ES_Status, culture_search, site_search]]
+            Action Input: {"query": "the search query"}
 
 
             If you receive an observation after an action, you should consider it and then decide your next step. If you have enough information to answer the user's question, respond with:
@@ -87,10 +79,10 @@ class ESAgent(Agent):
 
             **Examples:**
 
-            - **User's Question:** "Tell me about the 2020 California wildfires."
-              Thought: I need to search for information about the 2020 California wildfires.
-              Action: RAG_Search
-              Action Input: {"query": "California wildfires", "dates": "2020-01-01 to 2020-12-31"}
+            - **User's Question:** "Tell me about the place to play."
+              Thought: I need to search for information about the place to play.
+              Action: site_search
+              Action Input: {"query": "the place to play"}
 
             - **User's Question:** "What happened during the presidential election?"
               Thought: The user didn't specify a date. I should ask for a date range.
@@ -107,98 +99,6 @@ class ESAgent(Agent):
             Your goal is to assist the user by effectively using the tools when necessary and providing clear and concise answers.
             """
         )
-
-    # Define a function to check ES status
-    def es_ping(self, _input):
-        if self.es_client is None:
-            return "ES client is not initialized."
-        else:
-            try:
-                if self.es_client.ping():
-                    return "ES is connected."
-                else:
-                    return "ES is not connected."
-            except Exception as e:
-                return f"Error pinging ES: {e}"
-
-    # Define the RAG search function
-    def rag_search(self, query: str, dates: str):
-        if self.es_client is None:
-            return "ES client is not initialized."
-        else:
-            try:
-                # Build the Elasticsearch query
-                must_clauses = []
-
-                # If dates are provided, parse and include in query
-                if dates:
-                    # Dates must be in format 'YYYY-MM-DD' or 'YYYY-MM-DD to YYYY-MM-DD'
-                    date_parts = dates.strip().split(' to ')
-                    if len(date_parts) == 1:
-                        # Single date
-                        start_date = date_parts[0]
-                        end_date = date_parts[0]
-                    elif len(date_parts) == 2:
-                        start_date = date_parts[0]
-                        end_date = date_parts[1]
-                    else:
-                        return "Invalid date format. Please use YYYY-MM-DD or YYYY-MM-DD to YYYY-MM-DD."
-
-                    date_range = {
-                        "range": {
-                            "date": {
-                                "gte": start_date,
-                                "lte": end_date
-                            }
-                        }
-                    }
-                    must_clauses.append(date_range)
-
-                # Add the main query clause
-                main_query = {
-                    "nested": {
-                        "path": "text.inference.chunks",
-                        "query": {
-                            "sparse_vector": {
-                                "inference_id": "elser_v2",
-                                "field": "text.inference.chunks.embeddings",
-                                "query": query
-                            }
-                        },
-                        "inner_hits": {
-                            "size": 2,
-                            "name": "bignews_embedded.text",
-                            "_source": False
-                        }
-                    }
-                }
-                must_clauses.append(main_query)
-
-                es_query = {
-                    "_source": ["text.text", "title", "date"],
-                    "query": {
-                        "bool": {
-                            "must": must_clauses
-                        }
-                    },
-                    "size": 3
-                }
-
-                response = self.es_client.search(index="bignews_embedded", body=es_query)
-                hits = response["hits"]["hits"]
-                if not hits:
-                    return "No articles found for your query."
-                result_docs = []
-                for hit in hits:
-                    source = hit["_source"]
-                    title = source.get("title", "No Title")
-                    text_content = source.get("text", {}).get("text", "")
-                    date = source.get("date", "No Date")
-                    doc = f"Title: {title}\nDate: {date}\n{text_content}\n"
-                    result_docs.append(doc)
-                return "\n".join(result_docs)
-            except Exception as e:
-                return f"Error during RAG search: {e}"
 
 
 # Interactive conversation with the agent

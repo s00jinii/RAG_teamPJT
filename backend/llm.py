@@ -8,7 +8,7 @@ import time
 load_dotenv()
 
 
-class Agent:
+class LLMClient:
     def __init__(self):
         """Initialize the Agent with the OpenAI client."""
         self.llm = self.get_llm_client()
@@ -57,7 +57,7 @@ class Agent:
 
 
 def main():
-    agent = Agent()
+    agent = LLMClient()
     print("Welcome to the chat agent. Type 'exit' to quit.")
     while True:
         user_input = input("You: ")
