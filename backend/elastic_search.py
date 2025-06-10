@@ -13,10 +13,11 @@ class ElasticSearchClient:
         self.es_model_id = 'intfloat__multilingual-e5-base'
         try:
             # Elasticsearch setup
-            es_endpoint = os.environ.get("ELASTIC_ENDPOINT")
+            # es_endpoint = os.environ.get('ELASTIC_ENDPOINT')
             self.es_client = Elasticsearch(
-                es_endpoint,
-                api_key=os.environ.get("ELASTIC_API_KEY")
+                # es_endpoint,
+                cloud_id=os.environ.get('ELASTIC_CLOUD_ID'),
+                api_key=(os.environ.get('ELASTIC_API_ID'), os.environ.get("ELASTIC_API_KEY"))
             )
         except Exception as e:
             self.es_client = None

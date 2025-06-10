@@ -10,6 +10,7 @@ load_dotenv()
 
 class LLMClient:
     def __init__(self):
+        super().__init__()
         """Initialize the Agent with the OpenAI client."""
         self.llm = self.get_llm_client()
 
