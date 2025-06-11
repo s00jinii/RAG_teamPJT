@@ -1,15 +1,12 @@
-from typing import Union
-
 from fastapi import FastAPI
+from api import Body
+from agent import ESAgent
 
 app = FastAPI()
+es_agnet = ESAgent()
 
 
-@app.get("/")
-async def read_root():
-    return {"Hello": "World"}
-
-
-@app.get("/items/{item_id}")
-async def read_item(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
+@app.post("/agent/query")
+async def read_item(body: Body):
+    result = es_agnet.agent_chain.invoke(input=body.message)
+    return {"result": result}

@@ -3,8 +3,8 @@ from langchain.tools import StructuredTool
 from langchain.memory import ConversationBufferMemory
 from pydantic import BaseModel, Field
 
-from backend.elastic_search import ElasticSearchClient
-from backend.llm import LLMClient
+from elastic_search import ElasticSearchClient
+from llm import LLMClient
 
 
 class RagSearchInput(BaseModel):
