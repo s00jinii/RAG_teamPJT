@@ -34,7 +34,7 @@ class ESAgent(LLMClient, ElasticSearchClient):
 
         site_search_tool = StructuredTool(
                 name="site_search",
-                func=self.culture_search,
+                func=self.site_search,
                 description=(
                     "Use this tool to search for information about site from the knowledge base. "
                     "**Input must include a search query.** "
